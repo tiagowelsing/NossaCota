@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NossaCota - Finanças Coletivas</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        section { margin-bottom: 30px; padding: 15px; border: 1px solid #eee; border-radius: 5px; }
+        h2 { color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #3498db; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:hover { background-color: #2980b9; }
+        .list-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .positive { color: #27ae60; font-weight: bold; }
+        .negative { color: #e74c3c; font-weight: bold; }
+        .quite { color: #7f8c8d; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 5px; }
+        .checkbox-item input { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NossaCota 💸</h1>
+
+        <section id="membros-section">
+            <h2>👥 Adicionar Membro</h2>
+            <div class="form-group">
+                <label>Nome</label>
+                <input type="text" id="membro-nome" placeholder="Ex: Tiago">
+            </div>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="membro-email" placeholder="Ex: tiago@email.com">
+            </div>
+            <button onclick="adicionarMembro()">Adicionar</button>
+        </section>
+
+        <section id="despesas-section">
+            <h2>💰 Registrar Despesa</h2>
+            <div class="form-group">
+                <label>Descrição</label>
+                <input type="text" id="despesa-desc" placeholder="Ex: Pizza">
+            </div>
+            <div class="form-group">
+                <label>Valor (R$)</label>
+                <input type="number" id="despesa-valor" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Quem pagou?</label>
+                <select id="despesa-pagador"></select>
+            </div>
+            <div class="form-group">
+                <label>Participantes</label>
+                <div id="participantes-list" class="checkbox-group"></div>
+            </div>
+            <button onclick="registrarDespesa()">Registrar</button>
+        </section>
+
+        <section id="clearing-section">
+            <h2>⚖️ Balanço Final (Clearing)</h2>
+            <div id="saldos-list"></div>
+            <button onclick="atualizarDados()" style="margin-top: 15px; background-color: #95a5a6;">Atualizar Tudo</button>
+        </section>
+    </div>
+
+    <script>
+        const GRUPO_ID = 'g1';
+
+        async function atualizarDados() {
+            const res = await fetch(`/api/grupo/${GRUPO_ID}`);
+            const grupo = await res.json();
+            
+            // Atualizar Select de Pagador
+            const select = document.getElementById('despesa-pagador');
+            select.innerHTML = grupo.membros.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+
+            // Atualizar Checkboxes de Participantes
+            const pList = document.getElementById('participantes-list');
+            pList.innerHTML = grupo.membros.map(m => `
+                <div class="checkbox-item">
+                    <input type="checkbox" name="participante" value="${m.id}" checked>
+                    <span>${m.nome}</span>
+                </div>
+            `).join('');
+
+            // Atualizar Saldos
+            const resSaldos = await fetch(`/api/grupo/${GRUPO_ID}/saldos`);
+            const saldos = await resSaldos.json();
+            const saldosDiv = document.getElementById('saldos-list');
+            
+            saldosDiv.innerHTML = grupo.membros.map(m => {
+                const saldo = saldos[m.id] || 0;
+                let classe = 'quite';
+                let texto = 'ESTÁ QUITE';
+                if (saldo > 0) { classe = 'positive'; texto = `RECEBE R$ ${saldo.toFixed(2)}`; }
+                else if (saldo < 0) { classe = 'negative'; texto = `DEVE R$ ${Math.abs(saldo).toFixed(2)}`; }
+                
+                return `
+                    <div class="list-item">
+                        <span>${m.nome}</span>
+                        <span class="${classe}">${texto}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function adicionarMembro() {
+            const nome = document.getElementById('membro-nome').value;
+            const email = document.getElementById('membro-email').value;
+            if (!nome || !email) return alert('Preencha tudo!');
+
+            await fetch('/api/membros', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grupoId: GRUPO_ID, membroId: 'm' + Date.now(), nome, email })
+            });
+            atualizarDados();
+        }
+
+        async function registrarDespesa() {
+            const descricao = document.getElementById('despesa-desc').value;
+            const valor = parseFloat(document.getElementById('despesa-valor').value);
+            const pagadorId = document.getElementById('despesa-pagador').value;
+            const participantesIds = Array.from(document.querySelectorAll('input[name="participante"]:checked')).map(i => i.value);
+
+            if (!descricao || !valor || !pagadorId || participantesIds.length === 0) return alert('Preencha tudo!');
+
+            await fetch('/api/despesas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grupoId: GRUPO_ID, despesaId: 'd' + Date.now(), descricao, valor, pagadorId, participantesIds })
+            });
+            atualizarDados();
+        }
+
+        atualizarDados();
+    </script>
+</body>
+</html>
