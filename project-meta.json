@@ -1,0 +1,17 @@
+{
+  "curso": "Engenharia de Software",
+  "disciplina": "Orientação a Objetos",
+  "tema_escolhido": "10",
+  "linguagem": "TypeScript",
+  "gerenciador_dependencias": "NPM",
+  "integrantes": [
+    {
+      "nome": "João Silva",
+      "github_username": "joaosilva"
+    },
+    {
+      "nome": "Maria Oliveira",
+      "github_username": "mariaoliveira"
+    }
+  ]
+}
